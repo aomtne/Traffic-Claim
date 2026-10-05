@@ -60,6 +60,10 @@
   .done p{margin:0;color:var(--muted);font-size:14px}
   .done img{max-width:100%;max-height:110px;margin:16px auto 0;display:block}
   .loading{color:var(--muted);text-align:center;padding:24px}
+  .adminrow{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;text-align:center}
+  .ghost{background:none;border:1px solid var(--line);color:var(--muted);padding:8px 16px;font-size:14px}
+  #vLogin.admin .code{border-color:#8a5a00}
+  #vLogin.admin #btnLogin{background:#8a5a00}
   .board{display:block;text-align:center;margin:18px 0 0;font-size:15px;color:var(--accent);text-decoration:none}
   [hidden]{display:none!important}
 </style>
@@ -78,6 +82,7 @@
     <input id="code" class="code" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="例：613493">
     <button id="btnLogin" class="primary">登入</button>
     <p class="msg err" id="loginMsg"></p>
+    <div class="adminrow"><button class="ghost" id="btnAdminMode">🔑 管理者登入</button></div>
   </section>
 
   <section id="vSign" hidden>
@@ -125,7 +130,7 @@
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
-  var state = { person:null, period:null };
+  var state = { person:null, period:null, appUrl:'' };
   var STORE_KEY = 'signapp_code';
 
   function store(k, v){ try{ if(v===null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
@@ -290,10 +295,44 @@
       .then(function(){ $('btnLogin').disabled = false; $('btnLogin').textContent = '登入'; });
   }
 
+  var adminMode = false;
+  function setAdminMode(on){
+    adminMode = on;
+    $('vLogin').classList.toggle('admin', on);
+    document.querySelector('label[for=code]').textContent = on ? '請輸入管理者姓名代號' : '請輸入您的姓名代號';
+    $('btnLogin').textContent = on ? '管理者登入' : '登入';
+    $('btnAdminMode').textContent = on ? '← 返回一般簽名登入' : '🔑 管理者登入';
+    $('loginMsg').textContent = ''; $('code').value = ''; $('code').focus();
+  }
+  $('btnAdminMode').addEventListener('click', function(){ setAdminMode(!adminMode); });
+
+  function adminUrl(){
+    if(GH) return new URL('board.html?page=admin', location.href).href;
+    return state.appUrl ? state.appUrl + '?page=admin' : '';
+  }
+  function doAdminLogin(code){
+    var btn = $('btnLogin'); btn.disabled = true; btn.textContent = '驗證中…';
+    var urlP = (GH || state.appUrl) ? Promise.resolve() : call('apiAppUrl').then(function(u){ state.appUrl = u; });
+    Promise.all([call('apiAdminLogin', code), urlP]).then(function(r){
+      var res = r[0];
+      if(!res.ok){ $('loginMsg').textContent = res.msg; return; }
+      try{ sessionStorage.setItem('signapp_pw', code); }catch(e){}
+      var url = adminUrl();
+      $('loginMsg').className = 'msg ok';
+      $('loginMsg').innerHTML = '';
+      $('loginMsg').appendChild(document.createTextNode((res.name ? res.name + ' 您好，' : '') + '正在前往管理頁… '));
+      var a = document.createElement('a'); a.href = url; a.target = '_top'; a.textContent = '（沒有自動跳轉請點這裡）';
+      $('loginMsg').appendChild(a);
+      window.open(url, '_top');
+    }).catch(function(err){ $('loginMsg').textContent = '連線失敗：' + err; })
+      .then(function(){ btn.disabled = false; btn.textContent = adminMode ? '管理者登入' : '登入'; });
+  }
+
   $('btnLogin').addEventListener('click', function(){
     var c = $('code').value.replace(/\D/g,'');
-    if(!c){ $('loginMsg').textContent = '請輸入姓名代號'; return; }
-    doLogin(c);
+    $('loginMsg').className = 'msg err';
+    if(!c){ $('loginMsg').textContent = adminMode ? '請輸入管理者姓名代號' : '請輸入姓名代號'; return; }
+    if(adminMode) doAdminLogin(c); else doLogin(c);
   });
   $('code').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('btnLogin').click(); });
   $('btnSwitch').addEventListener('click', function(){
@@ -318,7 +357,7 @@
 
   /* ---------- 啟動 ---------- */
   if(GH){ $('boardLink').href = 'board.html'; $('boardLink').hidden = false; }
-  else call('apiAppUrl').then(function(u){ if(u){ $('boardLink').href = u + '?page=view'; $('boardLink').hidden = false; } }).catch(function(){});
+  else call('apiAppUrl').then(function(u){ state.appUrl = u; if(u){ $('boardLink').href = u + '?page=view'; $('boardLink').hidden = false; } }).catch(function(){});
   var saved = load(STORE_KEY);
   call('apiGetActive').then(function(p){
     setHeader(p);

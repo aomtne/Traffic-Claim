@@ -115,8 +115,8 @@
 <body>
 
 <section class="gate" id="gate" hidden>
-  <h1>簽名管理</h1>
-  <input type="password" id="pw" placeholder="管理密碼" autocomplete="current-password">
+  <h1>管理者登入</h1>
+  <input type="password" id="pw" placeholder="管理者姓名代號" inputmode="numeric" autocomplete="off">
   <button class="primary" id="btnPw">進入</button>
   <p class="err" id="pwMsg"></p>
 </section>
@@ -131,6 +131,7 @@
     <button id="btnEdit" class="admin-only">編輯宣導內容</button>
     <span class="sp"></span>
     <button id="btnReload" title="重新讀取簽名">↻ 重新整理</button>
+    <button id="btnLogout" class="admin-only" title="登出管理者">登出</button>
     <button class="primary" id="btnPrint">🖨 列印 A4</button>
   </div>
 
@@ -410,6 +411,7 @@
   /* ---------- 動作 ---------- */
   $('selPeriod').addEventListener('change', function(){ reload(this.value, true); });
   $('btnReload').addEventListener('click', function(){ reload(); });
+  $('btnLogout').addEventListener('click', function(){ ss('signapp_pw', null); window.open(GH ? 'index.html' : (S.data && S.data.appUrl) || location.href, '_top'); });
   $('btnPrint').addEventListener('click', function(){ applyOptions(); window.print(); });
   $('btnCopyUrl').addEventListener('click', function(){ copy($('url').value); });
 
