@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>全體簽名一覽</title>
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#17212b; --muted:#5f6b78; --line:#d8dee5; --bg:#e9edf1; --card:#fff;
+    --accent:#0b4f94; --accent-soft:#e6eef8; --ok:#17784a; --ok-soft:#e5f4ec; --warn:#a15c07; --warn-soft:#fdf3e1; --err:#b42318;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:14px;line-height:1.5}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;color:var(--ink)}
+  button:hover{border-color:#aab6c3}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.danger{color:var(--err);border-color:#f0c8c4}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input[type=text],input[type=password],select,textarea{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;color:var(--ink)}
+  [hidden]{display:none!important}
+  body.view .admin-only{display:none!important}
+
+  /* ---------- 登入 ---------- */
+  .gate{max-width:340px;margin:12vh auto;background:#fff;border-radius:14px;padding:26px;box-shadow:0 4px 18px rgba(16,24,40,.08)}
+  .gate h1{font-size:19px;margin:0 0 14px}
+  .gate input{width:100%;padding:10px 12px}
+  .gate button{width:100%;margin-top:12px;padding:10px}
+  .err{color:var(--err);min-height:1.4em;margin:8px 0 0}
+
+  /* ---------- 版面 ---------- */
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .bar h1{font-size:16px;margin:0 10px 0 0}
+  .bar .sp{flex:1}
+  .badge{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}
+  .badge.on{background:var(--ok-soft);color:var(--ok)}
+  .badge.off{background:#eef0f3;color:var(--muted)}
+  .layout{display:grid;grid-template-columns:310px 1fr;gap:16px;padding:16px;align-items:start}
+  @media (max-width:900px){ .layout{grid-template-columns:1fr} }
+  .panel{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px}
+  .panel h2{font-size:13px;color:var(--muted);font-weight:600;margin:0 0 8px;letter-spacing:.03em}
+  .big{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+  .big small{font-size:15px;color:var(--muted);font-weight:500}
+  .bar-track{height:8px;background:#eef0f3;border-radius:99px;margin:10px 0 4px;overflow:hidden}
+  .bar-fill{height:100%;background:var(--ok);border-radius:99px;transition:width .3s}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:2px 8px;font-size:13px}
+  .muted{color:var(--muted);font-size:12.5px}
+  .row{display:flex;gap:6px;align-items:center}
+  .row input{flex:1;min-width:0}
+  #qr{margin-top:10px;display:flex;justify-content:center}
+  #qr img,#qr canvas{width:150px;height:150px}
+  .opt{display:flex;gap:8px;align-items:center;margin:4px 0}
+  .stack > * + *{margin-top:8px}
+  .full{width:100%}
+
+  /* ---------- 預覽 ---------- */
+  .preview-wrap{background:#c9d1d9;border-radius:12px;padding:18px;overflow:hidden}
+  .scaler{transform-origin:top left}
+  .a4{box-shadow:0 2px 14px rgba(0,0,0,.18)}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1f2a37;color:#fff;padding:10px 16px;border-radius:8px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+
+  dialog{border:0;border-radius:14px;padding:20px;max-width:560px;width:calc(100% - 32px);box-shadow:0 10px 40px rgba(0,0,0,.25)}
+  dialog::backdrop{background:rgba(15,23,32,.45)}
+  dialog h3{margin:0 0 12px;font-size:17px}
+  dialog label{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px}
+  dialog input[type=text],dialog textarea{width:100%}
+  dialog textarea{min-height:220px;line-height:1.6}
+  dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  #sigImg{display:block;max-width:100%;max-height:140px;margin:10px auto;border:1px solid var(--line);border-radius:8px;padding:6px}
+
+  /* =====================================================
+     A4 表單（對應 Word 原表格；寬 9781 twips = 172.5 mm）
+     ===================================================== */
+  .a4{width:210mm;height:297mm;background:#fff;color:#000;padding:12.5mm 0 0;overflow:hidden;
+      font-family:"標楷體","DFKai-SB","BiauKai","Kaiti TC","STKaiti","AR PL UKai TW","Noto Serif TC",serif}
+  .a4.multi{height:auto;min-height:297mm}
+  .f-title{text-align:center;font-size:20pt;line-height:1.3;margin:0 0 3mm;font-weight:normal}
+  .f-period{text-align:right;font-size:12pt;width:172.5mm;margin:-2mm auto 1.5mm}
+  table.form{width:172.5mm;margin:0 auto;border-collapse:collapse;table-layout:fixed}
+  table.form td{border:.75pt solid #000;font-size:14pt;text-align:center;vertical-align:middle;padding:0 1.5mm;line-height:1.3}
+  table.form tr.hd td{height:12mm}
+  table.form td.label{white-space:normal}
+  table.form td.narrow{font-size:12pt;padding:0;white-space:nowrap}
+  table.form td.content{text-align:left;vertical-align:top;padding:2.5mm 3mm 2.5mm 2mm}
+  table.form td.content ol{margin:0;padding-left:7mm}
+  table.form td.content li{margin:0 0 1mm;text-align:justify}
+  table.form td.siglabel{vertical-align:top;padding-top:2mm}
+  table.form td.sig{position:relative;padding:0;cursor:pointer}
+  table.form td.sig img{position:absolute;left:1mm;right:1mm;top:.6mm;bottom:.6mm;width:calc(100% - 2mm);height:calc(100% - 1.2mm);object-fit:contain}
+  table.form td.sig .nm{position:absolute;right:1mm;bottom:.2mm;font-size:6.5pt;line-height:1;color:#444;font-family:"Microsoft JhengHei",sans-serif}
+  table.form td.sig .ph{font-size:9pt;color:#b7c0ca;font-family:"Microsoft JhengHei",sans-serif}
+  table.form td.sig:hover{background:#f3f7fc}
+  table.form tr.stamp td{height:25mm}
+  .hide-names .nm{display:none}
+
+  @page{size:A4 portrait;margin:0}
+  @media print{
+    html,body{background:#fff}
+    .noprint,.bar,.side,.toast,dialog{display:none!important}
+    .layout{display:block;padding:0}
+    .preview-wrap{background:none;padding:0;border-radius:0;overflow:visible;height:auto!important}
+    .scaler{transform:none!important}
+    .a4{box-shadow:none;margin:0;height:296mm}
+    .a4.multi{height:auto}
+    table.form td.sig .ph{display:none}
+    table.form td.sig:hover{background:none}
+  }
+</style>
+</head>
+<body>
+
+<section class="gate" id="gate" hidden>
+  <h1>簽名管理</h1>
+  <input type="password" id="pw" placeholder="管理密碼" autocomplete="current-password">
+  <button class="primary" id="btnPw">進入</button>
+  <p class="err" id="pwMsg"></p>
+</section>
+
+<div id="app" hidden>
+  <div class="bar">
+    <h1 id="barTitle">簽名管理</h1>
+    <select id="selPeriod" title="選擇期別"></select>
+    <span id="badge" class="badge off admin-only"></span>
+    <button id="btnActive" class="admin-only">開放此期簽名</button>
+    <button id="btnNew" class="admin-only">＋ 新增期別</button>
+    <button id="btnEdit" class="admin-only">編輯宣導內容</button>
+    <span class="sp"></span>
+    <button id="btnReload" title="重新讀取簽名">↻ 重新整理</button>
+    <button class="primary" id="btnPrint">🖨 列印 A4</button>
+  </div>
+
+  <div class="layout">
+    <aside class="side">
+      <div class="panel">
+        <h2>簽名進度</h2>
+        <div class="big" id="cnt">0 <small>/ 0 人</small></div>
+        <div class="bar-track"><div class="bar-fill" id="fill" style="width:0"></div></div>
+        <div class="muted" id="lastTime"></div>
+      </div>
+      <div class="panel">
+        <h2>尚未簽名 <span id="todoN"></span></h2>
+        <div class="chips" id="todo"></div>
+        <button class="full" id="btnMsg" style="margin-top:10px">複製催簽訊息（貼到 LINE）</button>
+      </div>
+      <div class="panel stack">
+        <h2>同仁簽名網址</h2>
+        <div class="row"><input type="text" id="url" readonly><button id="btnCopyUrl">複製</button></div>
+        <div id="qr"></div>
+        <div class="muted" style="text-align:center">手機掃描 QR Code 即可簽名</div>
+      </div>
+      <div class="panel">
+        <h2>列印選項</h2>
+        <label class="opt"><input type="checkbox" id="optName"> 簽名格右下角印姓名小字</label>
+        <label class="opt"><input type="checkbox" id="optPeriod"> 標題下方印期別</label>
+        <p class="muted" style="margin:8px 0 0">點選表格中的簽名可放大查看。灰字為尚未簽名者（不會印出）。列印時紙張選 A4、縮放 100%（或「預設」），若要存 PDF 請在印表機選「另存為 PDF」。</p>
+      </div>
+    </aside>
+
+    <section>
+      <div class="preview-wrap" id="pw-wrap">
+        <div class="scaler" id="scaler">
+          <div class="a4 hide-names" id="sheet">
+            <h1 class="f-title" id="fTitle"></h1>
+            <div class="f-period" id="fPeriod" hidden></div>
+            <table class="form" id="form">
+              <colgroup>
+                <col style="width:29.97mm"><col style="width:35.63mm"><col style="width:16.92mm"><col style="width:18.73mm">
+                <col style="width:11.29mm"><col style="width:24.34mm"><col style="width:35.65mm">
+              </colgroup>
+              <tbody id="tb"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<dialog id="dlgNew">
+  <h3>新增期別</h3>
+  <label for="newId">期別名稱</label>
+  <input type="text" id="newId" placeholder="例：115年11月">
+  <p class="muted">宣導內容會複製目前選擇的期別，建立後可再編輯。</p>
+  <label class="opt" style="color:var(--ink);font-size:14px"><input type="checkbox" id="newActive" checked> 建立後立即開放簽名（並關閉其他期別）</label>
+  <div class="actions"><button data-close>取消</button><button class="primary" id="btnNewOk">建立</button></div>
+</dialog>
+
+<dialog id="dlgEdit">
+  <h3>編輯宣導內容（<span id="editPeriod"></span>）</h3>
+  <label for="eTitle">標題</label><input type="text" id="eTitle">
+  <label for="eDept">提出部門</label><input type="text" id="eDept">
+  <label for="ePresenter">宣導者</label><input type="text" id="ePresenter">
+  <label for="eContent">宣導事項（一行一項，會自動編號；行首空白代表接續上一項）</label>
+  <textarea id="eContent"></textarea>
+  <div class="actions"><button data-close>取消</button><button class="primary" id="btnEditOk">儲存</button></div>
+</dialog>
+
+<dialog id="dlgSig">
+  <h3 id="sigName"></h3>
+  <div class="muted" id="sigTime"></div>
+  <img id="sigImg" alt="">
+  <div class="actions"><button class="danger admin-only" id="btnDel">刪除此簽名</button><button data-close>關閉</button></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var MM = 96 / 25.4;   // 1mm 的 CSS px
+  var S = { pw:'', data:null, periodId:'', sigCode:'', mode:'view' };
+  function fetchData(id){ return S.mode === 'admin' ? call('apiAdmin', S.pw, id) : call('apiView', id); }
+
+  function ss(k, v){ try{ if(v===undefined) return sessionStorage.getItem(k); if(v===null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); }catch(e){ return null; } }
+  function ls(k, v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }catch(e){ return null; } }
+
+  // GitHub 版：config.js 設定 window.GAS_URL → 用 fetch 呼叫 Apps Script；Apps Script 版：用 google.script.run
+  var GH = !!window.GAS_URL;
+  function call(fn){
+    var args = Array.prototype.slice.call(arguments, 1);
+    if(GH){
+      return fetch(window.GAS_URL, { method:'POST', redirect:'follow',
+        headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+        .then(function(r){ return r.json(); })
+        .then(function(o){ if(!o.ok) throw o.err; return o.v; },
+              function(e){ throw (e && e.message) ? '無法連線（' + e.message + '）' : String(e); });
+    }
+    return new Promise(function(resolve, reject){
+      var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function(err){
+        reject(err && err.message ? err.message : String(err));
+      });
+      r[fn].apply(r, args);
+    });
+  }
+  function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200); }
+  function copy(text){
+    function fallback(){ var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); toast('已複製'); }catch(e){ prompt('請手動複製：', text); } ta.remove(); }
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function(){ toast('已複製'); }, fallback);
+    else fallback();
+  }
+
+  /* ---------- 登入 ---------- */
+  function enter(pw){
+    $('pwMsg').textContent = '';
+    S.pw = pw;
+    return fetchData('').then(function(d){
+      ss('signapp_pw', pw);
+      $('gate').hidden = true; $('app').hidden = false;
+      render(d);
+      startAuto();
+    }).catch(function(err){ ss('signapp_pw', null); $('gate').hidden = false; $('pwMsg').textContent = err; });
+  }
+  $('btnPw').addEventListener('click', function(){ enter($('pw').value); });
+  $('pw').addEventListener('keydown', function(e){ if(e.key === 'Enter') enter($('pw').value); });
+
+  function reload(id, quiet){
+    return fetchData(id === undefined ? S.periodId : id).then(function(d){ render(d); if(!quiet) toast('已更新'); })
+      .catch(function(err){ toast('讀取失敗：' + err); });
+  }
+
+  /* ---------- 畫面 ---------- */
+  function render(d){
+    if(GH) d.appUrl = new URL('./', location.href).href;   // GitHub 版：簽名網址 = index.html 所在目錄
+    S.data = d;
+    var p = d.period;
+    S.periodId = p ? p.id : '';
+
+    var sel = $('selPeriod'); sel.innerHTML = '';
+    d.periods.slice().reverse().forEach(function(x){
+      var o = document.createElement('option'); o.value = x.id; o.textContent = x.id + (x.active ? '（開放中）' : '');
+      if(p && x.id === p.id) o.selected = true; sel.appendChild(o);
+    });
+
+    var b = $('badge');
+    if(p && p.active){ b.className = 'badge on'; b.textContent = '開放簽名中'; $('btnActive').textContent = '關閉此期簽名'; }
+    else { b.className = 'badge off'; b.textContent = '未開放'; $('btnActive').textContent = '開放此期簽名'; }
+    $('btnActive').disabled = $('btnEdit').disabled = !p;
+
+    var total = d.roster.length, done = d.roster.filter(function(r){ return r.sig; });
+    $('cnt').innerHTML = ''; $('cnt').appendChild(document.createTextNode(done.length + ' '));
+    var sm = document.createElement('small'); sm.textContent = '/ ' + total + ' 人'; $('cnt').appendChild(sm);
+    $('fill').style.width = (total ? done.length / total * 100 : 0) + '%';
+    var last = done.map(function(r){ return r.sig.time; }).sort().pop();
+    $('lastTime').textContent = last ? ('最近一筆：' + last) : '尚無簽名';
+
+    var todo = d.roster.filter(function(r){ return !r.sig; });
+    $('todoN').textContent = '（' + todo.length + '）';
+    var box = $('todo'); box.innerHTML = '';
+    if(!todo.length){ var s = document.createElement('span'); s.className = 'muted'; s.textContent = '全員完成 ✓'; box.appendChild(s); }
+    todo.forEach(function(r){ var c = document.createElement('span'); c.className = 'chip'; c.textContent = r.name; c.title = r.dept; box.appendChild(c); });
+    $('btnMsg').disabled = !todo.length;
+
+    if($('url').value !== d.appUrl){
+      $('url').value = d.appUrl; $('qr').innerHTML = '';
+      if(window.QRCode && d.appUrl){ try{ new QRCode($('qr'), { text: d.appUrl, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.M }); }catch(e){} }
+    }
+
+    renderSheet(d);
+  }
+
+  function addCell(tr, text, cls, colspan, rowspan){
+    var td = document.createElement('td');
+    if(cls) td.className = cls;
+    if(colspan) td.colSpan = colspan;
+    if(rowspan) td.rowSpan = rowspan;
+    if(text !== undefined && text !== null){
+      String(text).split('\n').forEach(function(t, i){ if(i) td.appendChild(document.createElement('br')); td.appendChild(document.createTextNode(t)); });
+    }
+    tr.appendChild(td); return td;
+  }
+
+  function renderSheet(d){
+    var p = d.period || { id:'', title:'', dept:'', presenter:'', content:'' };
+    $('fTitle').textContent = p.title;
+    $('fPeriod').textContent = '期別：' + p.id;
+    var tb = $('tb'); tb.innerHTML = '';
+
+    var tr = document.createElement('tr'); tr.className = 'hd'; addCell(tr, '提出部門', 'label'); addCell(tr, p.dept, '', 6); tb.appendChild(tr);
+    tr = document.createElement('tr'); tr.className = 'hd'; addCell(tr, '宣導者', 'label'); addCell(tr, p.presenter, '', 6); tb.appendChild(tr);
+
+    tr = document.createElement('tr'); tr.className = 'content-row';
+    addCell(tr, '宣導事項', 'label');
+    var tdc = addCell(tr, null, 'content', 6);
+    var ol = document.createElement('ol'), lastLi = null;
+    String(p.content || '').split(/\r?\n/).forEach(function(line){
+      if(!line.trim()) return;
+      if(/^\s/.test(line) && lastLi){ lastLi.appendChild(document.createElement('br')); lastLi.appendChild(document.createTextNode(line.trim())); return; }
+      lastLi = document.createElement('li'); lastLi.textContent = line.trim().replace(/^\d+[\.、]\s*/, ''); ol.appendChild(lastLi);
+    });
+    tdc.appendChild(ol); tb.appendChild(tr);
+
+    var cols = d.cols || 4, people = d.roster;
+    var rows = Math.max(d.minRows || 11, Math.ceil(people.length / cols));
+    var spans = [1, 2, 2, 1];   // 對應原表格欄位合併
+    for(var r = 0; r < rows; r++){
+      tr = document.createElement('tr'); tr.className = 'sigrow';
+      if(r === 0) addCell(tr, '部門\n宣導簽名', 'label siglabel', 1, rows);
+      for(var c = 0; c < cols; c++){
+        var person = people[r * cols + c];
+        var td = addCell(tr, null, 'sig', spans[c] || 1);
+        if(person){
+          td.dataset.code = person.code;
+          if(person.sig){
+            var img = document.createElement('img'); img.src = person.sig.img; img.alt = person.name; td.appendChild(img);
+            var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = person.name; td.appendChild(nm);
+            td.title = person.name + '｜' + person.sig.time;
+          }else{
+            var ph = document.createElement('span'); ph.className = 'ph'; ph.textContent = person.name; td.appendChild(ph);
+            td.title = person.name + '（未簽）';
+          }
+        }
+      }
+      tb.appendChild(tr);
+    }
+
+    tr = document.createElement('tr'); tr.className = 'stamp';
+    addCell(tr, '課長核章', 'label'); addCell(tr, '', '', 2); addCell(tr, '組長/經理\n核章', 'label narrow'); addCell(tr, '', '', 3);
+    tb.appendChild(tr);
+
+    applyOptions();
+    fitPage(rows);
+  }
+
+  /* 依內容自動調整字級與簽名列高，讓表格剛好放進一張 A4 */
+  function fitPage(rows){
+    var sheet = $('sheet'), form = $('form');
+    var sigRows = Array.prototype.slice.call(form.querySelectorAll('tr.sigrow'));
+    var content = form.querySelector('td.content');
+    var limit = (297 - 13) * MM;                   // 下方保留 13mm 邊界
+    function used(){ return form.getBoundingClientRect().bottom - sheet.getBoundingClientRect().top; }
+    function setRow(h){ sigRows.forEach(function(tr){ tr.style.height = h + 'mm'; }); }
+    var scaler = $('scaler'), prev = scaler.style.transform; scaler.style.transform = 'none';
+    var font = 13, h = 10;
+    content.style.fontSize = font + 'pt'; setRow(h);
+    sheet.classList.toggle('multi', rows > (S.data.minRows || 11));
+    if(rows <= (S.data.minRows || 11)){
+      while(used() > limit && font > 11){ font -= 0.5; content.style.fontSize = font + 'pt'; }
+      while(used() > limit && h > 8){ h -= 0.25; setRow(h); }
+      var spare = (limit - used()) / MM;
+      if(spare > 0) setRow(Math.min(14, h + spare / rows));
+    }
+    scaler.style.transform = prev;
+    scale();
+  }
+
+  function scale(){
+    var wrap = $('pw-wrap'), sc = $('scaler'), sheet = $('sheet');
+    var avail = wrap.clientWidth - 36, w = sheet.offsetWidth;
+    var k = Math.min(1.25, avail / w);
+    sc.style.transform = 'scale(' + k + ')';
+    wrap.style.height = (sheet.offsetHeight * k + 36) + 'px';
+  }
+  window.addEventListener('resize', scale);
+
+  function applyOptions(){
+    $('sheet').classList.toggle('hide-names', !$('optName').checked);
+    $('fPeriod').hidden = !$('optPeriod').checked;
+  }
+  ['optName','optPeriod'].forEach(function(id){
+    var saved = ls('signapp_' + id); if(saved !== null) $(id).checked = saved === '1';
+    $(id).addEventListener('change', function(){ ls('signapp_' + id, $(id).checked ? '1' : '0'); if(S.data) renderSheet(S.data); });
+  });
+
+  /* ---------- 動作 ---------- */
+  $('selPeriod').addEventListener('change', function(){ reload(this.value, true); });
+  $('btnReload').addEventListener('click', function(){ reload(); });
+  $('btnPrint').addEventListener('click', function(){ applyOptions(); window.print(); });
+  $('btnCopyUrl').addEventListener('click', function(){ copy($('url').value); });
+
+  $('btnMsg').addEventListener('click', function(){
+    var d = S.data, p = d.period, todo = d.roster.filter(function(r){ return !r.sig; }).map(function(r){ return r.name.replace(/\s+/g, ''); });
+    var msg = '【' + (p.title || '宣導') + '】' + p.id + ' 簽名\n'
+      + '請用手機開啟以下網址，輸入姓名代號後簽名：\n' + d.appUrl + '\n\n'
+      + '尚未簽名（' + todo.length + ' 人）：' + todo.join('、');
+    copy(msg);
+  });
+
+  $('btnActive').addEventListener('click', function(){
+    var p = S.data.period; if(!p) return;
+    var fn = p.active ? 'apiClosePeriod' : 'apiSetActive';
+    if(!p.active && !confirm('開放「' + p.id + '」簽名？\n其他期別會同時關閉。')) return;
+    call(fn, S.pw, p.id).then(function(){ reload(p.id, true); toast(p.active ? '已關閉簽名' : '已開放簽名'); })
+      .catch(function(err){ toast('失敗：' + err); });
+  });
+
+  function nextPeriodName(){
+    var ids = S.data.periods.map(function(x){ return x.id; });
+    var last = ids[ids.length - 1] || '', m = /^(\d+)年(\d+)月$/.exec(last);
+    if(m){ var y = +m[1], mo = +m[2] + 1; if(mo > 12){ mo = 1; y++; } return y + '年' + mo + '月'; }
+    var dt = new Date(); return (dt.getFullYear() - 1911) + '年' + (dt.getMonth() + 1) + '月';
+  }
+  $('btnNew').addEventListener('click', function(){ $('newId').value = nextPeriodName(); $('dlgNew').showModal(); $('newId').select(); });
+  $('btnNewOk').addEventListener('click', function(){
+    var id = $('newId').value.trim(); if(!id) return;
+    var act = $('newActive').checked, btn = this; btn.disabled = true;
+    call('apiNewPeriod', S.pw, id, S.periodId)
+      .then(function(){ return act ? call('apiSetActive', S.pw, id) : null; })
+      .then(function(){ $('dlgNew').close(); return reload(id, true); })
+      .then(function(){ toast('已建立「' + id + '」'); })
+      .catch(function(err){ alert(err); })
+      .then(function(){ btn.disabled = false; });
+  });
+
+  $('btnEdit').addEventListener('click', function(){
+    var p = S.data.period; if(!p) return;
+    $('editPeriod').textContent = p.id; $('eTitle').value = p.title; $('eDept').value = p.dept;
+    $('ePresenter').value = p.presenter; $('eContent').value = p.content;
+    $('dlgEdit').showModal();
+  });
+  $('btnEditOk').addEventListener('click', function(){
+    var btn = this; btn.disabled = true;
+    call('apiSavePeriod', S.pw, S.periodId, { title:$('eTitle').value, dept:$('eDept').value, presenter:$('ePresenter').value, content:$('eContent').value })
+      .then(function(){ $('dlgEdit').close(); return reload(S.periodId, true); }).then(function(){ toast('已儲存'); })
+      .catch(function(err){ alert(err); }).then(function(){ btn.disabled = false; });
+  });
+
+  $('tb').addEventListener('click', function(e){
+    var td = e.target.closest('td.sig'); if(!td || !td.dataset.code) return;
+    var person = S.data.roster.find(function(r){ return r.code === td.dataset.code; }); if(!person) return;
+    if(!person.sig){ toast(person.name + ' 尚未簽名'); return; }
+    S.sigCode = person.code;
+    $('sigName').textContent = person.name + '（' + person.dept + '）';
+    $('sigTime').textContent = '簽名時間：' + person.sig.time + (S.mode === 'admin' ? '｜代號 ' + person.code : '');
+    $('sigImg').src = person.sig.img;
+    $('dlgSig').showModal();
+  });
+  $('btnDel').addEventListener('click', function(){
+    if(!confirm('確定刪除這筆簽名？刪除後該同仁需重新簽名。')) return;
+    call('apiDeleteSig', S.pw, S.periodId, S.sigCode).then(function(){ $('dlgSig').close(); return reload(S.periodId, true); })
+      .then(function(){ toast('已刪除'); }).catch(function(err){ alert(err); });
+  });
+
+  document.querySelectorAll('dialog [data-close]').forEach(function(b){ b.addEventListener('click', function(){ b.closest('dialog').close(); }); });
+
+  /* 每 60 秒自動更新進度（頁面在前景且沒有開啟對話框時） */
+  function startAuto(){
+    setInterval(function(){
+      if(document.hidden || document.querySelector('dialog[open]')) return;
+      reload(S.periodId, true);
+    }, 60000);
+  }
+
+  /* ---------- 啟動：?page=view 公開檢視；?page=admin 管理 ---------- */
+  function start(params){
+    S.mode = params.page === 'admin' ? 'admin' : 'view';
+    if(S.mode === 'view'){
+      document.body.classList.add('view');
+      $('barTitle').textContent = '全體簽名一覽';
+    }
+    $('gate').hidden = true;
+    enter(ss('signapp_pw') || '').then(function(){ if(!$('app').hidden) return; $('pwMsg').textContent = ''; $('pw').focus(); });
+  }
+  try{ google.script.url.getLocation(function(loc){ start(loc.parameter || {}); }); }
+  catch(e){ start({ page: /page=admin/.test(location.search) ? 'admin' : 'view' }); }
+})();
+</script>
+</body>
+</html>
