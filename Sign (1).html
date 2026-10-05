@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root{
+    --ink:#17212b; --muted:#5f6b78; --line:#d8dee5; --bg:#eef1f4; --card:#fff;
+    --accent:#0b4f94; --accent-soft:#e6eef8; --ok:#17784a; --ok-soft:#e5f4ec; --err:#b42318; --err-soft:#fdecea;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    -webkit-text-size-adjust:100%; font-size:16px; line-height:1.55}
+  .top{background:var(--accent);color:#fff;padding:18px 16px 20px}
+  .top .eyebrow{font-size:13px;opacity:.85;letter-spacing:.04em}
+  .top h1{margin:4px 0 0;font-size:19px;font-weight:600;line-height:1.35}
+  main{max-width:560px;margin:0 auto;padding:14px 12px 40px}
+  .card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+  label.field{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+  input.code{width:100%;font-size:24px;letter-spacing:.12em;padding:12px 14px;border:1.5px solid var(--line);
+    border-radius:10px;outline:none;font-variant-numeric:tabular-nums}
+  input.code:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  button{font:inherit;cursor:pointer;border:0;border-radius:10px}
+  .primary{display:block;width:100%;margin-top:12px;padding:14px;background:var(--accent);color:#fff;font-size:17px;font-weight:600}
+  .primary:disabled{background:#a9b6c4;cursor:not-allowed}
+  .link{background:none;color:var(--accent);padding:4px 2px;font-size:15px}
+  .msg{min-height:1.4em;margin:10px 0 0;font-size:14px}
+  .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
+  .who{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .who .name{font-size:20px;font-weight:600}
+  .who .sub{font-size:13px;color:var(--muted)}
+  .status{border-radius:10px;padding:12px 14px;font-size:15px}
+  .status.ok{background:var(--ok-soft);color:var(--ok)}
+  .status.todo{background:var(--accent-soft);color:var(--accent)}
+  .status img{display:block;max-width:100%;max-height:90px;margin-top:8px;background:#fff;border-radius:6px;padding:4px}
+  details summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"收合";font-weight:400;font-size:14px;color:var(--accent)}
+  details:not([open]) summary::after{content:"展開"}
+  .meta{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:14px;color:var(--muted);margin:10px 0 6px}
+  .meta b{font-weight:500;color:var(--ink)}
+  ol.content{margin:8px 0 0;padding-left:1.5em}
+  ol.content li{margin:6px 0}
+  .padhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:600}
+  .padwrap{position:relative;border:1.5px dashed #9aa8b6;border-radius:10px;background:#fcfdfe;touch-action:none;
+    height:min(52vw,240px)}
+  .padwrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+  .baseline{position:absolute;left:8%;right:8%;bottom:26%;border-bottom:1px solid #c9d2db;pointer-events:none}
+  .hint{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;color:#a4b0bc;
+    font-size:22px;letter-spacing:.3em;pointer-events:none}
+  .tip{font-size:13px;color:var(--muted);margin:8px 0 0}
+  .check{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:15px}
+  .check input{width:22px;height:22px;margin:1px 0 0;flex:none;accent-color:var(--accent)}
+  .done{text-align:center;padding:28px 18px}
+  .done .big{width:64px;height:64px;border-radius:50%;background:var(--ok);color:#fff;font-size:36px;line-height:64px;margin:0 auto 12px}
+  .done h2{margin:0 0 4px;font-size:21px}
+  .done p{margin:0;color:var(--muted);font-size:14px}
+  .done img{max-width:100%;max-height:110px;margin:16px auto 0;display:block}
+  .loading{color:var(--muted);text-align:center;padding:24px}
+  .board{display:block;text-align:center;margin:18px 0 0;font-size:15px;color:var(--accent);text-decoration:none}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="eyebrow" id="periodLabel">線上簽名</div>
+  <h1 id="title">載入中…</h1>
+</header>
+
+<main>
+  <section id="vLoading" class="card loading">載入中…</section>
+
+  <section id="vLogin" class="card" hidden>
+    <label class="field" for="code">請輸入您的姓名代號</label>
+    <input id="code" class="code" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="例：613493">
+    <button id="btnLogin" class="primary">登入</button>
+    <p class="msg err" id="loginMsg"></p>
+  </section>
+
+  <section id="vSign" hidden>
+    <div class="card who">
+      <div><div class="name" id="whoName"></div><div class="sub" id="whoDept"></div></div>
+      <button class="link" id="btnSwitch">不是我</button>
+    </div>
+
+    <div class="card"><div class="status" id="status"></div></div>
+
+    <details class="card" id="contentBox" open>
+      <summary>宣導事項（請詳閱）</summary>
+      <div class="meta">
+        <span>提出部門</span><b id="mDept"></b>
+        <span>宣導者</span><b id="mPresenter"></b>
+      </div>
+      <ol class="content" id="content"></ol>
+    </details>
+
+    <div class="card">
+      <div class="padhead"><span id="padTitle">請在框內簽名</span><button class="link" id="btnClear">清除重寫</button></div>
+      <div class="padwrap" id="padWrap">
+        <div class="baseline"></div>
+        <div class="hint" id="padHint">簽 名 處</div>
+        <canvas id="pad"></canvas>
+      </div>
+      <p class="tip">字寫大一點、寫在框中間；手機橫放書寫空間更大。</p>
+      <label class="check"><input type="checkbox" id="ack"><span>我已閱讀並瞭解上述宣導事項</span></label>
+      <button id="btnSubmit" class="primary" disabled>送出簽名</button>
+      <p class="msg" id="signMsg"></p>
+    </div>
+  </section>
+
+  <section id="vDone" class="card done" hidden>
+    <div class="big">✓</div>
+    <h2>簽名完成</h2>
+    <p id="doneText"></p>
+    <img id="doneImg" alt="">
+    <button class="link" id="btnBack" style="margin-top:16px">返回</button>
+  </section>
+
+  <a class="board" id="boardLink" href="#" target="_top" hidden>查看全體簽名狀況 →</a>
+</main>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var state = { person:null, period:null };
+  var STORE_KEY = 'signapp_code';
+
+  function store(k, v){ try{ if(v===null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
+  function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+
+  function show(view){
+    ['vLoading','vLogin','vSign','vDone'].forEach(function(v){ $(v).hidden = (v !== view); });
+    if(view === 'vSign') pad.resize();
+    window.scrollTo(0,0);
+  }
+
+  function call(fn){
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve, reject){
+      var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function(err){
+        reject(err && err.message ? err.message : String(err));
+      });
+      r[fn].apply(r, args);
+    });
+  }
+
+  function renderContent(ol, text){
+    ol.innerHTML = '';
+    var last = null;
+    String(text || '').split(/\r?\n/).forEach(function(line){
+      if(!line.trim()) return;
+      if(/^\s/.test(line) && last){ last.appendChild(document.createElement('br')); last.appendChild(document.createTextNode(line.trim())); return; }
+      last = document.createElement('li');
+      last.textContent = line.trim().replace(/^\d+[\.、]\s*/, '');
+      ol.appendChild(last);
+    });
+  }
+
+  function setHeader(p){
+    $('title').textContent = p ? (p.title || '線上簽名') : '線上簽名';
+    $('periodLabel').textContent = p ? ('簽名期別：' + p.id) : '目前沒有開放簽名的期別';
+  }
+
+  /* ---------- 簽名板 ---------- */
+  var pad = (function(){
+    var wrap = $('padWrap'), cv = $('pad'), ctx = cv.getContext('2d');
+    var strokes = [], cur = null, BASE_W = 2.8;
+    function resize(){
+      var r = wrap.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      if(!r.width) return;
+      cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      redraw();
+    }
+    function drawStroke(c, s, k, ox, oy){
+      var pts = s; if(!pts.length) return;
+      c.lineWidth = BASE_W * k; c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = '#000';
+      c.beginPath();
+      c.moveTo((pts[0].x-ox)*k, (pts[0].y-oy)*k);
+      if(pts.length === 1){ c.lineTo((pts[0].x-ox)*k+0.1, (pts[0].y-oy)*k+0.1); }
+      for(var i=1;i<pts.length-1;i++){
+        var mx = (pts[i].x + pts[i+1].x)/2, my = (pts[i].y + pts[i+1].y)/2;
+        c.quadraticCurveTo((pts[i].x-ox)*k, (pts[i].y-oy)*k, (mx-ox)*k, (my-oy)*k);
+      }
+      if(pts.length > 1){ var l = pts[pts.length-1]; c.lineTo((l.x-ox)*k, (l.y-oy)*k); }
+      c.stroke();
+    }
+    function redraw(){
+      var r = wrap.getBoundingClientRect();
+      ctx.clearRect(0,0,r.width,r.height);
+      strokes.forEach(function(s){ drawStroke(ctx, s, 1, 0, 0); });
+      $('padHint').hidden = strokes.length > 0;
+    }
+    function pos(e){ var r = cv.getBoundingClientRect(); return { x:e.clientX - r.left, y:e.clientY - r.top }; }
+    cv.addEventListener('pointerdown', function(e){
+      e.preventDefault(); cv.setPointerCapture(e.pointerId);
+      cur = [pos(e)]; strokes.push(cur); redraw(); onChange();
+    });
+    cv.addEventListener('pointermove', function(e){
+      if(!cur) return; e.preventDefault();
+      var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      evs.forEach(function(ev){ cur.push(pos(ev)); });
+      redraw();
+    });
+    function end(){ cur = null; onChange(); }
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+    window.addEventListener('resize', function(){ setTimeout(resize, 120); });
+
+    function inkLength(){
+      var L = 0;
+      strokes.forEach(function(s){ for(var i=1;i<s.length;i++) L += Math.hypot(s[i].x-s[i-1].x, s[i].y-s[i-1].y); });
+      return L;
+    }
+    function toPNG(){
+      var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      strokes.forEach(function(s){ s.forEach(function(p){
+        if(p.x<minX)minX=p.x; if(p.y<minY)minY=p.y; if(p.x>maxX)maxX=p.x; if(p.y>maxY)maxY=p.y; }); });
+      var pad = BASE_W * 2, bw = (maxX-minX) + pad*2, bh = (maxY-minY) + pad*2;
+      var k = Math.min(2, 640/bw, 220/bh), url;
+      for(var tries=0; tries<6; tries++){
+        var out = document.createElement('canvas');
+        out.width = Math.max(1, Math.round(bw*k)); out.height = Math.max(1, Math.round(bh*k));
+        var c = out.getContext('2d');
+        strokes.forEach(function(s){ drawStroke(c, s, k, minX-pad, minY-pad); });
+        url = out.toDataURL('image/png');
+        if(url.length < 45000) break;
+        k *= 0.75;
+      }
+      return url;
+    }
+    return {
+      resize: resize,
+      clear: function(){ strokes = []; cur = null; redraw(); onChange(); },
+      isEnough: function(){ return inkLength() > 40; },
+      isEmpty: function(){ return strokes.length === 0; },
+      toPNG: toPNG
+    };
+  })();
+
+  function onChange(){ $('btnSubmit').disabled = pad.isEmpty() || !$('ack').checked; $('signMsg').textContent=''; }
+  $('ack').addEventListener('change', onChange);
+  $('btnClear').addEventListener('click', function(){ pad.clear(); });
+
+  /* ---------- 流程 ---------- */
+  function renderSign(res){
+    state.person = res.person; state.period = res.period;
+    setHeader(res.period);
+    $('whoName').textContent = res.person.name;
+    $('whoDept').textContent = res.person.dept + '　代號 ' + res.person.code;
+    $('mDept').textContent = res.period.dept;
+    $('mPresenter').textContent = res.period.presenter;
+    renderContent($('content'), res.period.content);
+    var st = $('status'); st.innerHTML = '';
+    if(res.signed){
+      st.className = 'status ok';
+      st.appendChild(document.createTextNode('您已於 ' + res.signed.time + ' 完成本期簽名。如需重簽，請在下方重新簽名後送出。'));
+      var img = document.createElement('img'); img.src = res.signed.img; st.appendChild(img);
+      $('padTitle').textContent = '重新簽名（會覆蓋原簽名）';
+      $('contentBox').open = false;
+    }else{
+      st.className = 'status todo';
+      st.textContent = '本期（' + res.period.id + '）尚未簽名，請閱讀宣導事項後簽名。';
+      $('padTitle').textContent = '請在框內簽名';
+      $('contentBox').open = true;
+    }
+    $('ack').checked = false; pad.clear();
+    show('vSign');
+  }
+
+  function doLogin(code){
+    $('loginMsg').textContent = '';
+    $('btnLogin').disabled = true; $('btnLogin').textContent = '登入中…';
+    return call('apiLogin', code).then(function(res){
+      if(!res.ok){ store(STORE_KEY, null); show('vLogin'); $('loginMsg').textContent = res.msg; return; }
+      store(STORE_KEY, res.person.code);
+      renderSign(res);
+    }).catch(function(err){ show('vLogin'); $('loginMsg').textContent = '連線失敗：' + err; })
+      .then(function(){ $('btnLogin').disabled = false; $('btnLogin').textContent = '登入'; });
+  }
+
+  $('btnLogin').addEventListener('click', function(){
+    var c = $('code').value.replace(/\D/g,'');
+    if(!c){ $('loginMsg').textContent = '請輸入姓名代號'; return; }
+    doLogin(c);
+  });
+  $('code').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('btnLogin').click(); });
+  $('btnSwitch').addEventListener('click', function(){
+    store(STORE_KEY, null); state.person = null; $('code').value = ''; show('vLogin'); $('code').focus();
+  });
+
+  $('btnSubmit').addEventListener('click', function(){
+    if(!pad.isEnough()){ $('signMsg').className='msg err'; $('signMsg').textContent = '簽名太短，請完整簽名'; return; }
+    var btn = $('btnSubmit'); btn.disabled = true; btn.textContent = '送出中…';
+    var url = pad.toPNG();
+    call('apiSubmit', state.person.code, state.period.id, url).then(function(res){
+      if(!res.ok){ $('signMsg').className='msg err'; $('signMsg').textContent = res.msg; return; }
+      $('doneText').textContent = res.name + '｜' + state.period.id + '｜' + res.time;
+      $('doneImg').src = url;
+      show('vDone');
+    }).catch(function(err){
+      $('signMsg').className='msg err'; $('signMsg').textContent = '送出失敗：' + err + '（請再試一次）';
+    }).then(function(){ btn.textContent = '送出簽名'; onChange(); });
+  });
+
+  $('btnBack').addEventListener('click', function(){ doLogin(state.person.code); });
+
+  /* ---------- 啟動 ---------- */
+  call('apiAppUrl').then(function(u){ if(u){ $('boardLink').href = u + '?page=view'; $('boardLink').hidden = false; } }).catch(function(){});
+  var saved = load(STORE_KEY);
+  call('apiGetActive').then(function(p){
+    setHeader(p);
+    if(saved){ $('code').value = saved; return doLogin(saved); }
+    show('vLogin');
+  }).catch(function(err){ show('vLogin'); $('loginMsg').textContent = '連線失敗：' + err; });
+})();
+</script>
+</body>
+</html>
